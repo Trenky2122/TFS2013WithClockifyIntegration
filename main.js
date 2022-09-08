@@ -5,15 +5,15 @@ const clockifyApiBaseAddress = "https://api.clockify.me/api/v1/"
 
 //region event handlers
 const handleAdd = async (item, key)=>{
-    let ticketNr = extractTicketNumberFromTileId(item.id);
-    console.log("Add to clockify "+ticketNr);
-    await addTicketToCurrentClockify(key, ticketNr).then(()=>console.log("done"));
+    let ticketText = getTicketFullTextFromTile(item);
+    console.log("Add to clockify "+ticketText);
+    await addTicketToCurrentClockify(key, ticketText).then(()=>console.log("done"));
 }
 
 const handleRemove = async (item, key)=>{
-    let ticketNr = extractTicketNumberFromTileId(item.id);
-    console.log("Remove from clockify "+ticketNr);
-    await removeTicketFromCurrentClockify(key, ticketNr).then(()=>console.log("done"));
+    let ticketText = getTicketFullTextFromTile(item);
+    console.log("Remove from clockify "+ticketText);
+    await removeTicketFromCurrentClockify(key, ticketText).then(()=>console.log("done"));
 }
 
 //endregion
@@ -23,25 +23,31 @@ const extractTicketNumberFromTileId = (itemId)=>{
     return itemId.split("-")[1];
 }
 
+const getTicketFullTextFromTile = (tile)=>{
+    let ticketId = extractTicketNumberFromTileId(tile.id);
+    let tileText = tile.firstChild.firstChild.innerHTML;
+    return ticketId +": "+ tileText;
+}
+
 const setErrorMessage = (message)=>{
     document.querySelectorAll(".hub-title").forEach(item=>{
         item.innerHTML="<span style='color: red'>" + message + "</span>"
     });
 }
 
-const getNewEntryDescriptionAdd = (descriptionOld, ticketNr)=>{
+const getNewEntryDescriptionAdd = (descriptionOld, ticketText)=>{
     if(!descriptionOld){
-        descriptionOld = ticketNr;
+        descriptionOld = ticketText;
     }
     else {
-        if(descriptionOld.indexOf(ticketNr) === -1)
-            descriptionOld += ", " + ticketNr;
+        if(descriptionOld.indexOf(ticketText) === -1)
+            descriptionOld += ", " + ticketText;
     }
     return descriptionOld;
 }
 
-const getNewEntryDescriptionRemove = (descriptionOld, ticketNr)=>{
-    let newDescription = descriptionOld.replace(", " + ticketNr, "").replace(ticketNr, "");
+const getNewEntryDescriptionRemove = (descriptionOld, ticketText)=>{
+    let newDescription = descriptionOld.replace(", " + ticketText, "").replace(ticketText, "");
     if(newDescription[0]==="," && newDescription[1]===" ")
         newDescription = newDescription.substring(2);
     return newDescription;
@@ -86,7 +92,7 @@ const getClockifyUserLast2Entries = async (user, key)=>{
     return entries;
 }
 
-const buildPutRequest = (entry, ticketId, description)=>{
+const buildPutRequest = (entry, description)=>{
     let retval = {
         "start": entry["timeInterval"]["start"],
         "billable": entry["billable"],
@@ -114,15 +120,15 @@ const updateClockifyEntry = async (entry, entryPutRequest, key)=>{
 //endregion
 
 //region main events
-const addTicketToCurrentClockify = async (key, ticketId) =>{
+const addTicketToCurrentClockify = async (key, ticketText) =>{
     let user = await getClockifyUser(key);
     if (!user)
         return;
     let entry = await getClockifyUserActiveEntry(user, key);
     if(!entry)
         return false;
-    let description = getNewEntryDescriptionAdd(entry["description"], ticketId);
-    let entryPutRequest = buildPutRequest(entry, ticketId, description);
+    let description = getNewEntryDescriptionAdd(entry["description"], ticketText);
+    let entryPutRequest = buildPutRequest(entry, description);
     let newEntry = await updateClockifyEntry(entry, entryPutRequest, key);
 }
 
@@ -134,7 +140,7 @@ const removeTicketFromCurrentClockify = async (key, ticketId) =>{
     if(!entry)
         return false;
     let description = getNewEntryDescriptionRemove(entry["description"], ticketId);
-    let entryPutRequest = buildPutRequest(entry, ticketId, description);
+    let entryPutRequest = buildPutRequest(entry, description);
     let newEntry = await updateClockifyEntry(entry, entryPutRequest, key);
 }
 
@@ -184,9 +190,10 @@ chrome.storage.sync.get("clockifyApiKey").then(async keyStorageItem=>{
     await recolorTickets(key, recentTicketsColor, currentTicketsColor);
 
     document.querySelectorAll(tileClassNameQuery).forEach(item=>{
-        item.addEventListener("auxclick", async event=>{
+        item.addEventListener("mousedown", async event=>{
             if(event.button != 1)
                 return;
+            event.preventDefault();
             if(event.altKey){
                 await handleRemove(item, key);
             }
