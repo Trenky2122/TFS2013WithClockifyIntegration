@@ -171,6 +171,42 @@ const recolorTickets = async (key, recentColor, activeColor)=>{
     })
 }
 
+function copyToClipboard(textToCopy) {
+    // navigator clipboard api needs a secure context (https)
+    if (navigator.clipboard && window.isSecureContext) {
+        // navigator clipboard api method'
+        return navigator.clipboard.writeText(textToCopy);
+    } else {
+        // text area method
+        let textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        // make the textarea out of viewport
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        return new Promise((res, rej) => {
+            // here the magic happens
+            document.execCommand('copy') ? res() : rej();
+            textArea.remove();
+        });
+    }
+}
+
+const copyTicketCheckInMessage = async (item)=>{
+    let message = getTicketFullTextFromTile(item);
+    await copyToClipboard(message);
+    console.log("Copied");
+}
+
+const copyTicketId = async (item)=>{
+    let tickeId = extractTicketNumberFromTileId(item.id);
+    await copyToClipboard(tickeId);
+    console.log("Copied");
+}
+
 //endregion
 
 //region runtime
@@ -194,6 +230,14 @@ chrome.storage.sync.get("clockifyApiKey").then(async keyStorageItem=>{
             if(event.button != 1)
                 return;
             event.preventDefault();
+            if(event.ctrlKey){
+                if(event.altKey){
+                    await copyTicketId(item);
+                }else {
+                    await copyTicketCheckInMessage(item);
+                }
+                return;
+            }
             if(event.altKey){
                 await handleRemove(item, key);
             }
